@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Списки</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --bg:var(--tg-theme-secondary-bg-color,#eff0f4);
+  --card:var(--tg-theme-section-bg-color,var(--tg-theme-bg-color,#fff));
+  --fg:var(--tg-theme-text-color,#111);
+  --hint:var(--tg-theme-hint-color,#8a8f98);
+  --link:var(--tg-theme-link-color,#2a7ae2);
+  --btn:var(--tg-theme-button-color,#2a7ae2);
+  --btn-fg:var(--tg-theme-button-text-color,#fff);
+  --head:var(--tg-theme-section-header-text-color,var(--hint));
+  --danger:var(--tg-theme-destructive-text-color,#e5483d);
+  --sep:var(--tg-theme-section-separator-color,rgba(127,127,127,.18));
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.35 -apple-system,system-ui,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:12px 12px 40px;padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 4px 12px}
+.top h1{font-size:22px;margin:0;font-weight:700;min-width:0;overflow-wrap:anywhere}
+.progress{font-size:13px;color:var(--hint);margin-top:2px}
+.bar{height:4px;border-radius:2px;background:var(--sep);margin:0 4px 14px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--btn);transition:width .25s}
+.tbtn{background:none;border:0;color:var(--link);font:inherit;font-size:15px;padding:6px 4px;cursor:pointer;white-space:nowrap}
+.group{margin-bottom:16px}
+.gh{display:flex;justify-content:space-between;align-items:center;padding:0 14px 6px;font-size:13px;text-transform:uppercase;letter-spacing:.03em;color:var(--head)}
+.card{background:var(--card);border-radius:12px;overflow:hidden}
+.row{display:flex;align-items:center;gap:12px;padding:11px 14px;min-height:46px;border-top:1px solid var(--sep);cursor:pointer;user-select:none}
+.row:first-child{border-top:0}
+.box{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--hint);display:grid;place-items:center;transition:all .15s}
+.row.done .box{background:var(--btn);border-color:var(--btn)}
+.box svg{width:13px;height:13px;opacity:0}
+.row.done .box svg{opacity:1}
+.txt{flex:1;min-width:0;overflow-wrap:anywhere}
+.row.done .txt{color:var(--hint);text-decoration:line-through}
+.del{flex:none;background:none;border:0;color:var(--danger);font-size:20px;line-height:1;padding:2px 4px;cursor:pointer}
+.add{color:var(--link)}
+.add .box{border-style:dashed;border-color:var(--link)}
+.inp{flex:1;min-width:0;font:inherit;color:var(--fg);background:transparent;border:0;outline:0;padding:0}
+.lrow .txt b{font-weight:600}
+.lrow .meta{font-size:13px;color:var(--hint)}
+.chev{color:var(--hint);font-size:20px}
+.actions{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.abtn{background:var(--card);border:0;border-radius:12px;padding:13px;font:inherit;color:var(--link);cursor:pointer}
+.abtn.danger{color:var(--danger)}
+.empty{padding:28px 14px;text-align:center;color:var(--hint)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:10px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:.9}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div class="toast" id="toast"></div>
+<script>
+(function(){
+const tg = window.Telegram && window.Telegram.WebApp;
+const inTg = !!(tg && tg.initData);
+if (tg) { tg.ready(); tg.expand(); }
+
+// ---------- Начальные данные ----------
+const uid = () => Math.random().toString(36).slice(2, 9);
+function mkList(title, groups){
+  return {id:uid(), title, hideDone:false, groups:groups.map(([g, items]) => ({id:uid(), title:g, items:items.map(t => ({id:uid(), t, d:0}))}))};
+}
+function defaults(){
+  return {v:1, lists:[mkList("В офис", [
+    ["Пластик и расходники", ["Пластик из нижнего шкафа","Пластик из верхнего шкафа","FEP-плёнка","Защитная плёнка"]],
+    ["Покраска и обработка", ["Покрасочный бокс","Аэрограф","Краски","УФ-лампа","Маникюрный пылесос + блок питания","Малый пылесос","Шуруповёрт","Шлифмашинка","Ультразвуковой нож","Удлинитель","Набор вплавляемых гаек и винтов"]],
+    ["Техника", ["Монитор","Блок питания монитора","Ножка монитора","Принтер для бумаги (решить)"]],
+    ["Проекты", ["Старый паяльник"]],
+    ["Для жены", ["Штатив"]],
+    ["Уют и соседи", ["Картина","Кофе для соседей","Красная кружка"]],
+    ["Проверить, нужно ли", ["Компрессор и шланг для аэрографа","Растворитель или промывка для аэрографа","Аккумуляторы и зарядки для шуруповёрта и шлифмашинки","Лезвия для ультразвукового ножа","Кабель к монитору","Если берёте принтер: кабели и бумага","Ключи от офиса"]],
+  ])]};
+}
+
+// ---------- Хранение: облако Telegram, иначе браузер ----------
+const CHUNK = 3800, LS = "tg-lists-v1";
+const cloud = inTg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast("6.9") ? tg.CloudStorage : null;
+
+function cloudGet(keys){ return new Promise((res, rej) => cloud.getItems(keys, (e, v) => e ? rej(e) : res(v))); }
+function cloudSet(k, v){ return new Promise((res, rej) => cloud.setItem(k, v, (e) => e ? rej(e) : res())); }
+
+async function load(){
+  try {
+    if (cloud) {
+      const m = await cloudGet(["n"]);
+      const n = parseInt(m.n || "0", 10);
+      if (n > 0) {
+        const keys = Array.from({length:n}, (_, i) => "d" + i);
+        const parts = await cloudGet(keys);
+        return JSON.parse(keys.map(k => parts[k] || "").join(""));
+      }
+      return null;
+    }
+    const raw = localStorage.getItem(LS);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+let saveTimer = null, saving = Promise.resolve();
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { saving = saving.then(doSave); }, 400);
+}
+async function doSave(){
+  const json = JSON.stringify(state);
+  try {
+    if (cloud) {
+      const n = Math.ceil(json.length / CHUNK);
+      for (let i = 0; i < n; i++) await cloudSet("d" + i, json.slice(i * CHUNK, (i + 1) * CHUNK));
+      await cloudSet("n", String(n));
+    } else {
+      localStorage.setItem(LS, json);
+    }
+  } catch (e) { toast("Не удалось сохранить"); }
+}
+
+// ---------- Состояние ----------
+let state = null, screen = "list", curId = null, editing = false, addingIn = null;
+const cur = () => state.lists.find(l => l.id === curId);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const count = l => { let a = 0, d = 0; l.groups.forEach(g => g.items.forEach(i => { a++; if (i.d) d++; })); return [d, a]; };
+
+function haptic(kind){ try { tg && tg.HapticFeedback && (kind === "ok" ? tg.HapticFeedback.notificationOccurred("success") : tg.HapticFeedback.selectionChanged()); } catch(e){} }
+function toast(t){ const el = document.getElementById("toast"); el.textContent = t; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 1600); }
+function confirmBox(text){
+  return new Promise(res => {
+    if (inTg && tg.showConfirm) tg.showConfirm(text, ok => res(!!ok));
+    else res(window.confirm(text));
+  });
+}
+
+const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="color:var(--btn-fg)"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';
+
+// ---------- Экраны ----------
+function render(){
+  const app = document.getElementById("app");
+  if (screen === "home") renderHome(app); else renderList(app);
+  if (tg && tg.BackButton) { screen === "list" ? tg.BackButton.show() : tg.BackButton.hide(); }
+  const inp = app.querySelector(".inp");
+  if (inp) inp.focus();
+}
+
+function renderHome(app){
+  let h = '<div class="top"><h1>Списки</h1><button class="tbtn" data-act="edit">' + (editing ? "Готово" : "Изменить") + '</button></div>';
+  h += '<div class="card">';
+  state.lists.forEach(l => {
+    const [d, a] = count(l);
+    h += '<div class="row lrow" data-act="open" data-id="' + l.id + '"><div class="txt"><b>' + esc(l.title) + '</b><div class="meta">' + d + ' из ' + a + '</div></div>'
+      + (editing ? '<button class="del" data-act="dellist" data-id="' + l.id + '" aria-label="Удалить список">✕</button>' : '<span class="chev">›</span>') + '</div>';
+  });
+  if (addingIn === "__list") h += '<div class="row add"><span class="box"></span><input class="inp" data-kind="list" placeholder="Название списка" enterkeyhint="done"></div>';
+  else h += '<div class="row add" data-act="addlist"><span class="box"></span><span class="txt">Новый список</span></div>';
+  h += '</div>';
+  app.innerHTML = h;
+}
+
+function renderList(app){
+  const l = cur();
+  if (!l) { screen = "home"; return render(); }
+  const [d, a] = count(l);
+  let h = '<div class="top"><div style="min-width:0"><h1>' + esc(l.title) + '</h1><div class="progress">Собрано ' + d + ' из ' + a + '</div></div>'
+    + '<button class="tbtn" data-act="edit">' + (editing ? "Готово" : "Изменить") + '</button></div>';
+  h += '<div class="bar"><i style="width:' + (a ? Math.round(d / a * 100) : 0) + '%"></i></div>';
+
+  l.groups.forEach(g => {
+    const items = l.hideDone && !editing ? g.items.filter(i => !i.d) : g.items;
+    if (!items.length && !editing && addingIn !== g.id && l.hideDone) return;
+    h += '<div class="group"><div class="gh"><span>' + esc(g.title) + '</span>'
+      + (editing ? '<button class="del" style="font-size:16px" data-act="delgroup" data-id="' + g.id + '" aria-label="Удалить группу">✕</button>' : '') + '</div><div class="card">';
+    items.forEach(i => {
+      h += '<div class="row' + (i.d ? ' done' : '') + '" data-act="toggle" data-g="' + g.id + '" data-id="' + i.id + '"><span class="box">' + CHECK + '</span><span class="txt">' + esc(i.t) + '</span>'
+        + (editing ? '<button class="del" data-act="delitem" data-g="' + g.id + '" data-id="' + i.id + '" aria-label="Удалить">✕</button>' : '') + '</div>';
+    });
+    if (addingIn === g.id) h += '<div class="row add"><span class="box"></span><input class="inp" data-kind="item" data-g="' + g.id + '" placeholder="Что взять?" enterkeyhint="done"></div>';
+    else h += '<div class="row add" data-act="additem" data-g="' + g.id + '"><span class="box"></span><span class="txt">Добавить</span></div>';
+    h += '</div></div>';
+  });
+
+  if (addingIn === "__group") h += '<div class="group"><div class="card"><div class="row add"><span class="box"></span><input class="inp" data-kind="group" placeholder="Название группы" enterkeyhint="done"></div></div></div>';
+
+  h += '<div class="actions">';
+  h += '<button class="abtn" data-act="addgroup">Новая группа</button>';
+  h += '<button class="abtn" data-act="hidedone">' + (l.hideDone ? "Показать собранное" : "Скрыть собранное") + '</button>';
+  h += '<button class="abtn" data-act="reset">Снять все отметки</button>';
+  h += '</div>';
+  app.innerHTML = h;
+}
+
+// ---------- Действия ----------
+document.addEventListener("click", async e => {
+  const el = e.target.closest("[data-act]");
+  if (!el) return;
+  const act = el.dataset.act, l = cur();
+  if (act !== "additem" && act !== "addgroup" && act !== "addlist") addingIn = null;
+
+  if (act === "open") { curId = el.dataset.id; screen = "list"; editing = false; }
+  else if (act === "edit") { editing = !editing; }
+  else if (act === "toggle") {
+    if (editing) return;
+    const it = l.groups.find(g => g.id === el.dataset.g).items.find(i => i.id === el.dataset.id);
+    it.d = it.d ? 0 : 1; haptic();
+    const [d, a] = count(l);
+    if (it.d && d === a) { haptic("ok"); toast("Всё собрано!"); }
+    save();
+  }
+  else if (act === "delitem") {
+    e.stopPropagation();
+    const g = l.groups.find(g => g.id === el.dataset.g);
+    g.items = g.items.filter(i => i.id !== el.dataset.id); save();
+  }
+  else if (act === "delgroup") {
+    const g = l.groups.find(g => g.id === el.dataset.id);
+    if (g.items.length && !(await confirmBox("Удалить группу «" + g.title + "» вместе с пунктами?"))) return;
+    l.groups = l.groups.filter(x => x.id !== g.id); save();
+  }
+  else if (act === "dellist") {
+    e.stopPropagation();
+    const target = state.lists.find(x => x.id === el.dataset.id);
+    if (!(await confirmBox("Удалить список «" + target.title + "»?"))) return;
+    state.lists = state.lists.filter(x => x.id !== target.id); save();
+  }
+  else if (act === "additem") { addingIn = el.dataset.g; }
+  else if (act === "addgroup") { addingIn = "__group"; }
+  else if (act === "addlist") { addingIn = "__list"; }
+  else if (act === "hidedone") { l.hideDone = !l.hideDone; save(); }
+  else if (act === "reset") {
+    if (!(await confirmBox("Снять все отметки в этом списке?"))) return;
+    l.groups.forEach(g => g.items.forEach(i => i.d = 0)); save();
+  }
+  render();
+});
+
+function commitInput(inp, keepOpen){
+  const v = inp.value.trim(), kind = inp.dataset.kind;
+  if (v) {
+    if (kind === "item") cur().groups.find(g => g.id === inp.dataset.g).items.push({id:uid(), t:v, d:0});
+    else if (kind === "group") { const g = {id:uid(), title:v, items:[]}; cur().groups.push(g); keepOpen = true; addingIn = g.id; }
+    else if (kind === "list") { const nl = mkList(v, [["Разное", []]]); state.lists.push(nl); curId = nl.id; screen = "list"; keepOpen = false; addingIn = nl.groups[0].id; save(); render(); return; }
+    save();
+  }
+  if (!v || !keepOpen) addingIn = null;
+  render();
+}
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.classList.contains("inp")) { e.preventDefault(); commitInput(e.target, e.target.dataset.kind === "item"); }
+  if (e.key === "Escape" && e.target.classList.contains("inp")) { addingIn = null; render(); }
+});
+document.addEventListener("focusout", e => {
+  const inp = e.target;
+  if (inp.classList && inp.classList.contains("inp")) setTimeout(() => {
+    if (document.body.contains(inp) && document.activeElement !== inp && addingIn) commitInput(inp, false);
+  }, 120);
+});
+
+if (tg && tg.BackButton) tg.BackButton.onClick(() => { screen = "home"; editing = false; addingIn = null; render(); });
+
+// ---------- Старт ----------
+(async () => {
+  state = await load();
+  if (!state || !Array.isArray(state.lists)) { state = defaults(); save(); }
+  if (!state.lists.length) { screen = "home"; }
+  curId = state.lists[0] ? state.lists[0].id : null;
+  screen = state.lists.length === 1 ? "list" : "home";
+  render();
+  if (!cloud) setTimeout(() => toast(inTg ? "Отметки хранятся на этом устройстве" : "Режим проверки в браузере"), 400);
+})();
+})();
+</script>
+</body>
+</html>
